@@ -16,7 +16,6 @@ import java.util.List;
 public class DataLoaderService {
 
     private final PlayerRepository playerRepository;
-
     private final PlayerSeasonStatsRepository statsRepository;
 
     DataLoaderService(PlayerRepository playerRepository, PlayerSeasonStatsRepository statsRepository) {
@@ -27,25 +26,64 @@ public class DataLoaderService {
     @PostConstruct
     public void loadData() {
         try {
-            System.out.println("Starting data load...");
+            System.out.println("🚀 Starting data load...");
 
             // 1. Read the JSON file
             ObjectMapper mapper = new ObjectMapper();
-            File jsonFile = new File("data/player_data.json");
+            File jsonFile = new File("data/all_players_data.json");
 
             if (!jsonFile.exists()) {
-                System.out.println("JSON file not found at: " + jsonFile.getAbsolutePath());
-                System.out.println("Skipping data load.");
-                return;
+                System.out.println("❌ all_players_data.json not found. Trying player_data.json...");
+                jsonFile = new File("data/player_data.json");
+                if (!jsonFile.exists()) {
+                    System.out.println("❌ No data file found. Skipping data load.");
+                    return;
+                }
             }
 
             JsonNode root = mapper.readTree(jsonFile);
 
-            // 2. Get player info
-            JsonNode playerInfo = root.get("player_info");
+            int totalPlayers = 0;
+            int totalSeasons = 0;
+
+            // Check if it's an array (multiple players) or single object
+            if (root.isArray()) {
+                // ✅ Multiple players (from fetch_all_players.py)
+                System.out.println("📦 Loading multiple players from all_players_data.json...");
+                for (JsonNode playerNode : root) {
+                    int count = loadSinglePlayer(playerNode);
+                    if (count > 0) {
+                        totalPlayers++;
+                        totalSeasons += count;
+                    }
+                }
+            } else {
+                // ✅ Single player (from fetch_player_data.py)
+                System.out.println("📦 Loading single player from player_data.json...");
+                int count = loadSinglePlayer(root);
+                if (count > 0) {
+                    totalPlayers = 1;
+                    totalSeasons = count;
+                }
+            }
+
+            System.out.println("✅ Data load complete!");
+            System.out.println("   Players loaded: " + totalPlayers);
+            System.out.println("   Seasons loaded: " + totalSeasons);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error loading data: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private int loadSinglePlayer(JsonNode node) {
+        try {
+            // 1. Get player info
+            JsonNode playerInfo = node.get("player_info");
             if (playerInfo == null) {
-                System.out.println("No player_info found in JSON.");
-                return;
+                System.out.println("⚠️ No player_info found, skipping...");
+                return 0;
             }
 
             Integer nbaPlayerId = playerInfo.get("id").asInt();
@@ -54,25 +92,39 @@ public class DataLoaderService {
             String lastName = playerInfo.get("last_name").asText();
             Boolean isActive = playerInfo.get("is_active").asBoolean();
 
-            // 3. Check if player already exists
+            // 2. Check if player already exists
             if (playerRepository.findByNbaPlayerId(nbaPlayerId).isPresent()) {
-                System.out.println("Player " + fullName + " already loaded. Skipping.");
-                return;
+                System.out.println("   ⏭️ Player " + fullName + " already loaded. Skipping.");
+                return 0;
             }
 
-            // 4. Create and save Player
+            // 3. Create and save Player
             Player player = new Player();
             player.setNbaPlayerId(nbaPlayerId);
             player.setName(fullName);
             player.setFirstName(firstName);
             player.setLastName(lastName);
             player.setIsActive(isActive);
-            // You can set team and position later when you have that data
-            player = playerRepository.save(player);
-            System.out.println("✅ Saved player: " + player.getName());
 
-            // 5. Find the SeasonTotalsRegularSeason result set
-            JsonNode resultSets = root.get("resultSets");
+            // Get team and position from player_info
+            String team = playerInfo.has("team") && !playerInfo.get("team").isNull()
+                    ? playerInfo.get("team").asText()
+                    : null;
+            String position = playerInfo.has("position") && !playerInfo.get("position").isNull()
+                    ? playerInfo.get("position").asText()
+                    : null;
+
+            player.setTeam(team);
+            player.setPosition(position);
+            // Note: team_name isn't in the Player model, but we store team abbreviation
+
+            player = playerRepository.save(player);
+            System.out.println("   ✅ Saved player: " + player.getName() +
+                    (team != null ? " (" + team + ")" : "") +
+                    (position != null ? " - " + position : ""));
+
+            // 4. Find the SeasonTotalsRegularSeason result set
+            JsonNode resultSets = node.get("resultSets");
             JsonNode seasonStats = null;
             for (JsonNode resultSet : resultSets) {
                 if ("SeasonTotalsRegularSeason".equals(resultSet.get("name").asText())) {
@@ -82,11 +134,11 @@ public class DataLoaderService {
             }
 
             if (seasonStats == null) {
-                System.out.println("No season stats found.");
-                return;
+                System.out.println("   ⚠️ No season stats found for " + fullName);
+                return 0;
             }
 
-            // 6. Parse and save each season
+            // 5. Parse and save each season
             JsonNode rows = seasonStats.get("rowSet");
             List<PlayerSeasonStats> statsList = new ArrayList<>();
 
@@ -95,10 +147,6 @@ public class DataLoaderService {
                 stats.setPlayer(player);
 
                 // Map each column by index
-                // Headers: PLAYER_ID, SEASON_ID, LEAGUE_ID, TEAM_ID, TEAM_ABBREVIATION,
-                // PLAYER_AGE, GP, GS, MIN, FGM, FGA, FG_PCT, FG3M, FG3A, FG3_PCT,
-                // FTM, FTA, FT_PCT, OREB, DREB, REB, AST, STL, BLK, TOV, PF, PTS
-
                 stats.setSeasonId(getString(row, 1));
                 stats.setTeamAbbreviation(getString(row, 4));
                 stats.setPlayerAge(getDouble(row, 5));
@@ -127,13 +175,15 @@ public class DataLoaderService {
                 statsList.add(stats);
             }
 
-            // 7. Save all season stats
+            // 6. Save all season stats
             statsRepository.saveAll(statsList);
-            System.out.println("✅ Saved " + statsList.size() + " seasons for " + player.getName());
+            System.out.println("   ✅ Saved " + statsList.size() + " seasons for " + player.getName());
+
+            return statsList.size();
 
         } catch (Exception e) {
-            System.err.println("❌ Error loading data: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("   ❌ Error loading player: " + e.getMessage());
+            return 0;
         }
     }
 
@@ -145,7 +195,7 @@ public class DataLoaderService {
 
     private Integer getInt(JsonNode row, int index) {
         JsonNode node = row.get(index);
-        if (node.isNull() || node.asText().equals("NR")) {
+        if (node.isNull() || "NR".equals(node.asText())) {
             return null;
         }
         try {
@@ -157,7 +207,7 @@ public class DataLoaderService {
 
     private Double getDouble(JsonNode row, int index) {
         JsonNode node = row.get(index);
-        if (node.isNull() || node.asText().equals("NR")) {
+        if (node.isNull() || "NR".equals(node.asText())) {
             return null;
         }
         try {
