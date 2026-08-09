@@ -29,6 +29,15 @@ services:
     networks:
       - hockey-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - hockey-network
+    restart: unless-stopped
+
 networks:
   hockey-network:
     driver: bridge

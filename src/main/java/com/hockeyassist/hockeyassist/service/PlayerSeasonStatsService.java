@@ -6,6 +6,8 @@ import com.hockeyassist.hockeyassist.repository.PlayerSeasonStatsRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.cache.annotation.Cacheable;
+
 import java.util.*;
 
 @Service
@@ -32,6 +34,7 @@ public class PlayerSeasonStatsService {
     }
 
     // Get stats by NBA player ID
+    @Cacheable(value = "seasons", key = "#nbaPlayerId")
     public List<PlayerSeasonStats> getStatsByNbaPlayerId(Integer nbaPlayerId) {
         return statsRepository.findByNbaPlayerId(nbaPlayerId);
     }
@@ -51,6 +54,7 @@ public class PlayerSeasonStatsService {
     // ==========================================
 
     // Get career totals for a player
+    @Cacheable(value = "seasons", key = "'career_' + #nbaPlayerId")
     public Map<String, Object> getCareerTotals(Integer nbaPlayerId) {
         return statsRepository.findCareerTotals(nbaPlayerId);
     }
@@ -95,6 +99,7 @@ public class PlayerSeasonStatsService {
     // ==========================================
 
     // Get league leaders for a season and stat
+    @Cacheable(value = "leaders", key = "#season + '_' + #stat + '_' + #limit")
     public List<PlayerSeasonStats> getLeagueLeaders(String season, String stat, Integer limit) {
         return statsRepository.findLeagueLeadersBySeason(season, stat, limit);
     }

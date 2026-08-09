@@ -1,11 +1,13 @@
 package com.hockeyassist.hockeyassist.controller;
 
+import com.hockeyassist.hockeyassist.dto.PlayerDTO;
 import com.hockeyassist.hockeyassist.model.Player;
 import com.hockeyassist.hockeyassist.model.PlayerSeasonStats;
 import com.hockeyassist.hockeyassist.service.PlayerService;
 import com.hockeyassist.hockeyassist.service.PlayerSeasonStatsService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
 import java.util.Map;
 
@@ -27,13 +29,13 @@ public class StatsController {
 
     // GET /api/stats/players - Get all players
     @GetMapping("/players")
-    public ResponseEntity<List<Player>> getAllPlayers() {
+    public ResponseEntity<List<PlayerDTO>> getAllPlayers() {
         return ResponseEntity.ok(playerService.getAllPlayers());
     }
 
     // GET /api/stats/players/{nbaPlayerId} - Get player by NBA ID
     @GetMapping("/players/{nbaPlayerId}")
-    public ResponseEntity<Player> getPlayerByNbaId(@PathVariable Integer nbaPlayerId) {
+    public ResponseEntity<PlayerDTO> getPlayerByNbaId(@PathVariable Integer nbaPlayerId) {
         return playerService.getPlayerByNbaId(nbaPlayerId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -41,18 +43,18 @@ public class StatsController {
 
     // GET /api/stats/players/search?query=LeBron - Search players by name
     @GetMapping("/players/search")
-    public ResponseEntity<List<Player>> searchPlayers(@RequestParam String query) {
+    public ResponseEntity<List<PlayerDTO>> searchPlayers(@RequestParam String query) {
         if (query == null || query.trim().isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
-        List<Player> players = playerService.searchPlayers(query.trim());
+        List<PlayerDTO> players = playerService.searchPlayers(query.trim());
         return ResponseEntity.ok(players);
     }
 
     // GET /api/stats/players/team/{team} - Get players by team
     @GetMapping("/players/team/{team}")
-    public ResponseEntity<List<Player>> getPlayersByTeam(@PathVariable String team) {
-        List<Player> players = playerService.getPlayersByTeam(team.toUpperCase());
+    public ResponseEntity<List<PlayerDTO>> getPlayersByTeam(@PathVariable String team) {
+        List<PlayerDTO> players = playerService.getPlayersByTeam(team.toUpperCase());
         if (players.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -61,8 +63,8 @@ public class StatsController {
 
     // GET /api/stats/players/position/{position} - Get players by position
     @GetMapping("/players/position/{position}")
-    public ResponseEntity<List<Player>> getPlayersByPosition(@PathVariable String position) {
-        List<Player> players = playerService.getPlayersByPosition(position.toUpperCase());
+    public ResponseEntity<List<PlayerDTO>> getPlayersByPosition(@PathVariable String position) {
+        List<PlayerDTO> players = playerService.getPlayersByPosition(position.toUpperCase());
         if (players.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -71,7 +73,7 @@ public class StatsController {
 
     // GET /api/stats/players/active - Get all active players
     @GetMapping("/players/active")
-    public ResponseEntity<List<Player>> getActivePlayers() {
+    public ResponseEntity<List<PlayerDTO>> getActivePlayers() {
         return ResponseEntity.ok(playerService.getActivePlayers());
     }
 
@@ -95,7 +97,12 @@ public class StatsController {
             @PathVariable Integer nbaPlayerId,
             @PathVariable String seasonId) {
         return playerService.getPlayerByNbaId(nbaPlayerId)
-                .flatMap(player -> {
+                .flatMap(playerDTO -> {
+                    // Need to fetch the actual Player entity for season stats
+                    Player player = playerService.findPlayerEntityByNbaId(nbaPlayerId).orElse(null);
+                    if (player == null) {
+                        return java.util.Optional.empty();
+                    }
                     List<PlayerSeasonStats> stats = statsService.getStatsByPlayerAndSeason(player, seasonId);
                     return stats.isEmpty() ? java.util.Optional.empty() : java.util.Optional.of(stats.get(0));
                 })
@@ -174,8 +181,8 @@ public class StatsController {
 
     // GET /api/stats/teams/{team}/players - Get players on a team
     @GetMapping("/teams/{team}/players")
-    public ResponseEntity<List<Player>> getTeamPlayers(@PathVariable String team) {
-        List<Player> players = playerService.getPlayersByTeam(team.toUpperCase());
+    public ResponseEntity<List<PlayerDTO>> getTeamPlayers(@PathVariable String team) {
+        List<PlayerDTO> players = playerService.getPlayersByTeam(team.toUpperCase());
         if (players.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
