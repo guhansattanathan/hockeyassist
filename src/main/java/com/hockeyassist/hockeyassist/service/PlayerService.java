@@ -13,9 +13,13 @@ public class PlayerService {
 
     private final PlayerRepository playerRepository;
 
-    PlayerService(PlayerRepository playerRepository) {
+    public PlayerService(PlayerRepository playerRepository) {
         this.playerRepository = playerRepository;
     }
+
+    // ==========================================
+    // BASIC CRUD OPERATIONS
+    // ==========================================
 
     // Get all players
     public List<Player> getAllPlayers() {
@@ -37,11 +41,6 @@ public class PlayerService {
         return playerRepository.findByName(name);
     }
 
-    // Get players by team
-    public List<Player> getPlayersByTeam(String team) {
-        return playerRepository.findByTeam(team);
-    }
-
     // Create or update player
     @Transactional
     public Player savePlayer(Player player) {
@@ -57,5 +56,76 @@ public class PlayerService {
     // Check if player exists
     public boolean playerExists(Integer nbaPlayerId) {
         return playerRepository.existsByNbaPlayerId(nbaPlayerId);
+    }
+
+    // ==========================================
+    // SEARCH AND FILTER METHODS
+    // ==========================================
+
+    // Search players by name (partial match, case insensitive)
+    public List<Player> searchPlayers(String query) {
+        return playerRepository.findByNameContainingIgnoreCase(query);
+    }
+
+    // Get players by team
+    public List<Player> getPlayersByTeam(String team) {
+        return playerRepository.findByTeam(team);
+    }
+
+    // Get players by position
+    public List<Player> getPlayersByPosition(String position) {
+        return playerRepository.findByPosition(position);
+    }
+
+    // Get all active players
+    public List<Player> getActivePlayers() {
+        return playerRepository.findByIsActiveTrue();
+    }
+
+    // Get all inactive players
+    public List<Player> getInactivePlayers() {
+        return playerRepository.findByIsActiveFalse();
+    }
+
+    // ==========================================
+    // TEAM METHODS
+    // ==========================================
+
+    // Get all distinct teams
+    public List<String> getAllTeams() {
+        return playerRepository.findDistinctTeams();
+    }
+
+    // Get all players on a team (alias for getPlayersByTeam)
+    public List<Player> getPlayersOnTeam(String team) {
+        return getPlayersByTeam(team);
+    }
+
+    // ==========================================
+    // POSITION METHODS
+    // ==========================================
+
+    // Get all distinct positions
+    public List<String> getAllPositions() {
+        return playerRepository.findDistinctPositions();
+    }
+
+    // ==========================================
+    // STATISTICS METHODS
+    // ==========================================
+
+    // Get total player count
+    public long getTotalPlayerCount() {
+        return playerRepository.count();
+    }
+
+    // Get active player count
+    public long getActivePlayerCount() {
+        return playerRepository.countByIsActiveTrue();
+    }
+
+    // Get team player count
+    public long getTeamPlayerCount(String team) {
+        return playerRepository.countByTeam(team);
     }
 }

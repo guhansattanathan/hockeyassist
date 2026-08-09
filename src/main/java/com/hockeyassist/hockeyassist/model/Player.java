@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 @Entity
 @Table(name = "players")
 public class Player {
@@ -36,6 +38,7 @@ public class Player {
 
     // One Player has many PlayerSeasonStats
     @OneToMany(mappedBy = "player", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<PlayerSeasonStats> seasonStats = new ArrayList<>();
 
     // Constructors

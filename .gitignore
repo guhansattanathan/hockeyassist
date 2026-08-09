@@ -31,3 +31,8 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Data files (large JSON files from NBA API)
+data/
+*.json
+!src/**/*.json
