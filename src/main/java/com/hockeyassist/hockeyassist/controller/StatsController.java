@@ -1,13 +1,11 @@
 package com.hockeyassist.hockeyassist.controller;
 
 import com.hockeyassist.hockeyassist.dto.PlayerDTO;
-import com.hockeyassist.hockeyassist.model.Player;
 import com.hockeyassist.hockeyassist.model.PlayerSeasonStats;
 import com.hockeyassist.hockeyassist.service.PlayerService;
 import com.hockeyassist.hockeyassist.service.PlayerSeasonStatsService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 import java.util.Map;
 
@@ -24,16 +22,14 @@ public class StatsController {
     }
 
     // ==========================================
-    // 1. PLAYER ENDPOINTS
+    // PLAYER ENDPOINTS
     // ==========================================
 
-    // GET /api/stats/players - Get all players
     @GetMapping("/players")
     public ResponseEntity<List<PlayerDTO>> getAllPlayers() {
         return ResponseEntity.ok(playerService.getAllPlayers());
     }
 
-    // GET /api/stats/players/{nbaPlayerId} - Get player by NBA ID
     @GetMapping("/players/{nbaPlayerId}")
     public ResponseEntity<PlayerDTO> getPlayerByNbaId(@PathVariable Integer nbaPlayerId) {
         return playerService.getPlayerByNbaId(nbaPlayerId)
@@ -41,7 +37,6 @@ public class StatsController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // GET /api/stats/players/search?query=LeBron - Search players by name
     @GetMapping("/players/search")
     public ResponseEntity<List<PlayerDTO>> searchPlayers(@RequestParam String query) {
         if (query == null || query.trim().isEmpty()) {
@@ -51,7 +46,6 @@ public class StatsController {
         return ResponseEntity.ok(players);
     }
 
-    // GET /api/stats/players/team/{team} - Get players by team
     @GetMapping("/players/team/{team}")
     public ResponseEntity<List<PlayerDTO>> getPlayersByTeam(@PathVariable String team) {
         List<PlayerDTO> players = playerService.getPlayersByTeam(team.toUpperCase());
@@ -61,7 +55,6 @@ public class StatsController {
         return ResponseEntity.ok(players);
     }
 
-    // GET /api/stats/players/position/{position} - Get players by position
     @GetMapping("/players/position/{position}")
     public ResponseEntity<List<PlayerDTO>> getPlayersByPosition(@PathVariable String position) {
         List<PlayerDTO> players = playerService.getPlayersByPosition(position.toUpperCase());
@@ -71,17 +64,15 @@ public class StatsController {
         return ResponseEntity.ok(players);
     }
 
-    // GET /api/stats/players/active - Get all active players
     @GetMapping("/players/active")
     public ResponseEntity<List<PlayerDTO>> getActivePlayers() {
         return ResponseEntity.ok(playerService.getActivePlayers());
     }
 
     // ==========================================
-    // 2. SEASON STATS ENDPOINTS
+    // SEASON STATS ENDPOINTS
     // ==========================================
 
-    // GET /api/stats/players/{nbaPlayerId}/seasons - Get all seasons for a player
     @GetMapping("/players/{nbaPlayerId}/seasons")
     public ResponseEntity<List<PlayerSeasonStats>> getPlayerSeasons(@PathVariable Integer nbaPlayerId) {
         List<PlayerSeasonStats> stats = statsService.getStatsByNbaPlayerId(nbaPlayerId);
@@ -91,26 +82,22 @@ public class StatsController {
         return ResponseEntity.ok(stats);
     }
 
-    // GET /api/stats/players/{nbaPlayerId}/seasons/{seasonId} - Get specific season
     @GetMapping("/players/{nbaPlayerId}/seasons/{seasonId}")
     public ResponseEntity<PlayerSeasonStats> getPlayerSeason(
             @PathVariable Integer nbaPlayerId,
             @PathVariable String seasonId) {
         return playerService.getPlayerByNbaId(nbaPlayerId)
                 .flatMap(playerDTO -> {
-                    // Need to fetch the actual Player entity for season stats
-                    Player player = playerService.findPlayerEntityByNbaId(nbaPlayerId).orElse(null);
-                    if (player == null) {
-                        return java.util.Optional.empty();
-                    }
-                    List<PlayerSeasonStats> stats = statsService.getStatsByPlayerAndSeason(player, seasonId);
-                    return stats.isEmpty() ? java.util.Optional.empty() : java.util.Optional.of(stats.get(0));
+                    // Need to get the actual Player entity for season stats
+                    List<PlayerSeasonStats> stats = statsService.getStatsByNbaPlayerId(nbaPlayerId);
+                    return stats.stream()
+                            .filter(s -> seasonId.equals(s.getSeasonId()))
+                            .findFirst();
                 })
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // GET /api/stats/players/{nbaPlayerId}/career - Get career totals
     @GetMapping("/players/{nbaPlayerId}/career")
     public ResponseEntity<Map<String, Object>> getCareerTotals(@PathVariable Integer nbaPlayerId) {
         Map<String, Object> totals = statsService.getCareerTotals(nbaPlayerId);
@@ -120,7 +107,6 @@ public class StatsController {
         return ResponseEntity.ok(totals);
     }
 
-    // GET /api/stats/players/{nbaPlayerId}/averages - Get career averages
     @GetMapping("/players/{nbaPlayerId}/averages")
     public ResponseEntity<Map<String, Double>> getCareerAverages(@PathVariable Integer nbaPlayerId) {
         Map<String, Double> averages = statsService.getCareerAverages(nbaPlayerId);
@@ -130,7 +116,6 @@ public class StatsController {
         return ResponseEntity.ok(averages);
     }
 
-    // GET /api/stats/players/{nbaPlayerId}/best/{stat} - Get best season for a stat
     @GetMapping("/players/{nbaPlayerId}/best/{stat}")
     public ResponseEntity<PlayerSeasonStats> getBestSeason(
             @PathVariable Integer nbaPlayerId,
@@ -141,10 +126,9 @@ public class StatsController {
     }
 
     // ==========================================
-    // 3. LEAGUE LEADERS ENDPOINTS
+    // LEAGUE LEADERS ENDPOINTS
     // ==========================================
 
-    // GET /api/stats/leaders/{season}/{stat}?limit=10 - Get league leaders
     @GetMapping("/leaders/{season}/{stat}")
     public ResponseEntity<List<PlayerSeasonStats>> getLeagueLeaders(
             @PathVariable String season,
@@ -157,7 +141,6 @@ public class StatsController {
         return ResponseEntity.ok(leaders);
     }
 
-    // GET /api/stats/leaders/all-time/{stat}?limit=10 - Get all-time leaders
     @GetMapping("/leaders/all-time/{stat}")
     public ResponseEntity<List<Map<String, Object>>> getAllTimeLeaders(
             @PathVariable String stat,
@@ -170,16 +153,14 @@ public class StatsController {
     }
 
     // ==========================================
-    // 4. TEAM ANALYTICS ENDPOINTS
+    // TEAM ANALYTICS ENDPOINTS
     // ==========================================
 
-    // GET /api/stats/teams - Get all teams
     @GetMapping("/teams")
     public ResponseEntity<List<String>> getAllTeams() {
         return ResponseEntity.ok(playerService.getAllTeams());
     }
 
-    // GET /api/stats/teams/{team}/players - Get players on a team
     @GetMapping("/teams/{team}/players")
     public ResponseEntity<List<PlayerDTO>> getTeamPlayers(@PathVariable String team) {
         List<PlayerDTO> players = playerService.getPlayersByTeam(team.toUpperCase());
@@ -189,8 +170,6 @@ public class StatsController {
         return ResponseEntity.ok(players);
     }
 
-    // GET /api/stats/teams/{team}/averages/{season} - Get team averages for a
-    // season
     @GetMapping("/teams/{team}/averages/{season}")
     public ResponseEntity<Map<String, Double>> getTeamAverages(
             @PathVariable String team,
@@ -203,16 +182,14 @@ public class StatsController {
     }
 
     // ==========================================
-    // 5. SEASON ANALYTICS ENDPOINTS
+    // SEASON ANALYTICS ENDPOINTS
     // ==========================================
 
-    // GET /api/stats/seasons - Get all seasons
     @GetMapping("/seasons")
     public ResponseEntity<List<String>> getAllSeasons() {
         return ResponseEntity.ok(statsService.getAllSeasons());
     }
 
-    // GET /api/stats/seasons/{season}/players - Get all players in a season
     @GetMapping("/seasons/{season}/players")
     public ResponseEntity<List<PlayerSeasonStats>> getSeasonPlayers(@PathVariable String season) {
         List<PlayerSeasonStats> stats = statsService.getSeasonPlayers(season);
@@ -223,10 +200,9 @@ public class StatsController {
     }
 
     // ==========================================
-    // 6. COMPARISON ENDPOINTS
+    // COMPARISON ENDPOINTS
     // ==========================================
 
-    // GET /api/stats/compare?player1=203999&player2=2544 - Compare two players
     @GetMapping("/compare")
     public ResponseEntity<Map<String, Object>> comparePlayers(
             @RequestParam Integer player1,

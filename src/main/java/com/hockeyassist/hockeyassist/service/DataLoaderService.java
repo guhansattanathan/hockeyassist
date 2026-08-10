@@ -4,10 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hockeyassist.hockeyassist.model.Player;
 import com.hockeyassist.hockeyassist.model.PlayerSeasonStats;
+import com.hockeyassist.hockeyassist.model.Team;
 import com.hockeyassist.hockeyassist.repository.PlayerRepository;
 import com.hockeyassist.hockeyassist.repository.PlayerSeasonStatsRepository;
+import com.hockeyassist.hockeyassist.repository.TeamRepository;
 import org.springframework.stereotype.Service;
-import jakarta.annotation.PostConstruct;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,13 +18,16 @@ public class DataLoaderService {
 
     private final PlayerRepository playerRepository;
     private final PlayerSeasonStatsRepository statsRepository;
+    private final TeamRepository teamRepository;
 
-    DataLoaderService(PlayerRepository playerRepository, PlayerSeasonStatsRepository statsRepository) {
+    DataLoaderService(PlayerRepository playerRepository,
+            PlayerSeasonStatsRepository statsRepository,
+            TeamRepository teamRepository) {
         this.playerRepository = playerRepository;
         this.statsRepository = statsRepository;
+        this.teamRepository = teamRepository;
     }
 
-    @PostConstruct
     public void loadData() {
         try {
             System.out.println("🚀 Starting data load...");
@@ -98,32 +102,56 @@ public class DataLoaderService {
                 return 0;
             }
 
-            // 3. Create and save Player
+            // 3. Get team from player_info
+            String teamIdStr = playerInfo.has("team") && !playerInfo.get("team").isNull()
+                    ? playerInfo.get("team").asText()
+                    : null;
+
+            System.out.println("   🔍 Debug - teamIdStr: '" + teamIdStr + "' for " + fullName);
+            System.out.println("   🔍 Debug - playerInfo: " + playerInfo);
+
+            Team team = null;
+            if (teamIdStr != null && !teamIdStr.isEmpty()) {
+                try {
+                    Integer teamId = Integer.parseInt(teamIdStr);
+                    System.out.println("   🔍 Parsed as integer: " + teamId);
+                    team = teamRepository.findByTeamId(teamId).orElse(null);
+                    if (team == null) {
+                        System.out.println("   ⚠️ Team with ID " + teamId + " not found for " + fullName);
+                    } else {
+                        System.out.println("   ✅ Found team: " + team.getAbbreviation() + " for " + fullName);
+                    }
+                } catch (NumberFormatException e) {
+                    System.out.println("   🔍 Could not parse as integer: " + teamIdStr);
+                    // If it's already an abbreviation, try to find by abbreviation
+                    team = teamRepository.findByAbbreviation(teamIdStr).orElse(null);
+                    if (team == null) {
+                        System.out.println("   ⚠️ Team with abbreviation " + teamIdStr + " not found for " + fullName);
+                    }
+                }
+            }
+
+            String position = playerInfo.has("position") && !playerInfo.get("position").isNull()
+                    ? playerInfo.get("position").asText()
+                    : null;
+
+            // 4. Create and save Player
             Player player = new Player();
             player.setNbaPlayerId(nbaPlayerId);
             player.setName(fullName);
             player.setFirstName(firstName);
             player.setLastName(lastName);
             player.setIsActive(isActive);
-
-            // Get team and position from player_info
-            String team = playerInfo.has("team") && !playerInfo.get("team").isNull()
-                    ? playerInfo.get("team").asText()
-                    : null;
-            String position = playerInfo.has("position") && !playerInfo.get("position").isNull()
-                    ? playerInfo.get("position").asText()
-                    : null;
-
-            player.setTeam(team);
+            player.setTeam(team); // ✅ Now setting Team entity
             player.setPosition(position);
-            // Note: team_name isn't in the Player model, but we store team abbreviation
 
             player = playerRepository.save(player);
+            String teamDisplay = team != null ? team.getAbbreviation() : "N/A";
             System.out.println("   ✅ Saved player: " + player.getName() +
-                    (team != null ? " (" + team + ")" : "") +
+                    " (" + teamDisplay + ")" +
                     (position != null ? " - " + position : ""));
 
-            // 4. Find the SeasonTotalsRegularSeason result set
+            // 5. Find the SeasonTotalsRegularSeason result set
             JsonNode resultSets = node.get("resultSets");
             JsonNode seasonStats = null;
             for (JsonNode resultSet : resultSets) {
@@ -138,7 +166,7 @@ public class DataLoaderService {
                 return 0;
             }
 
-            // 5. Parse and save each season
+            // 6. Parse and save each season
             JsonNode rows = seasonStats.get("rowSet");
             List<PlayerSeasonStats> statsList = new ArrayList<>();
 
@@ -175,7 +203,7 @@ public class DataLoaderService {
                 statsList.add(stats);
             }
 
-            // 6. Save all season stats
+            // 7. Save all season stats
             statsRepository.saveAll(statsList);
             System.out.println("   ✅ Saved " + statsList.size() + " seasons for " + player.getName());
 

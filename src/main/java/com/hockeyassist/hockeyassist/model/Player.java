@@ -27,9 +27,6 @@ public class Player {
     @Column(name = "last_name")
     private String lastName;
 
-    @Column(name = "team")
-    private String team;
-
     @Column(name = "position")
     private String position;
 
@@ -40,6 +37,12 @@ public class Player {
     @OneToMany(mappedBy = "player", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnore
     private List<PlayerSeasonStats> seasonStats = new ArrayList<>();
+
+    // ✅ Relationship to Team entity (instead of String team)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "team_id", referencedColumnName = "team_id")
+    @JsonIgnore
+    private Team team;
 
     // Constructors
     public Player() {
@@ -98,14 +101,6 @@ public class Player {
         this.lastName = lastName;
     }
 
-    public String getTeam() {
-        return team;
-    }
-
-    public void setTeam(String team) {
-        this.team = team;
-    }
-
     public String getPosition() {
         return position;
     }
@@ -128,5 +123,14 @@ public class Player {
 
     public void setSeasonStats(List<PlayerSeasonStats> seasonStats) {
         this.seasonStats = seasonStats;
+    }
+
+    // ✅ Getter and Setter for Team
+    public Team getTeam() {
+        return team;
+    }
+
+    public void setTeam(Team team) {
+        this.team = team;
     }
 }

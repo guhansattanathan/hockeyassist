@@ -3,8 +3,6 @@ package com.hockeyassist.hockeyassist.model;
 import jakarta.persistence.*;
 import java.util.UUID;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-
 @Entity
 @Table(name = "player_season_stats")
 public class PlayerSeasonStats {
@@ -13,10 +11,8 @@ public class PlayerSeasonStats {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    // Many season stats belong to one Player
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "player_id", nullable = false)
-    @JsonIgnore
     private Player player;
 
     @Column(name = "season_id")

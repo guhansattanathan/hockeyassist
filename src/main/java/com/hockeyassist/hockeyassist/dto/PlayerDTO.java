@@ -1,6 +1,7 @@
 package com.hockeyassist.hockeyassist.dto;
 
 import com.hockeyassist.hockeyassist.model.Player;
+import com.hockeyassist.hockeyassist.model.Team;
 import java.io.Serializable;
 import java.util.UUID;
 
@@ -12,7 +13,8 @@ public class PlayerDTO implements Serializable {
     private String name;
     private String firstName;
     private String lastName;
-    private String team;
+    private String team; // Team abbreviation (String)
+    private String teamName; // Full team name (optional)
     private String position;
     private Boolean isActive;
 
@@ -25,9 +27,18 @@ public class PlayerDTO implements Serializable {
         this.name = player.getName();
         this.firstName = player.getFirstName();
         this.lastName = player.getLastName();
-        this.team = player.getTeam();
         this.position = player.getPosition();
         this.isActive = player.getIsActive();
+
+        // ✅ Handle Team entity
+        Team team = player.getTeam();
+        if (team != null) {
+            this.team = team.getAbbreviation();
+            this.teamName = team.getFullName();
+        } else {
+            this.team = null;
+            this.teamName = null;
+        }
     }
 
     // Getters and Setters
@@ -77,6 +88,14 @@ public class PlayerDTO implements Serializable {
 
     public void setTeam(String team) {
         this.team = team;
+    }
+
+    public String getTeamName() {
+        return teamName;
+    }
+
+    public void setTeamName(String teamName) {
+        this.teamName = teamName;
     }
 
     public String getPosition() {

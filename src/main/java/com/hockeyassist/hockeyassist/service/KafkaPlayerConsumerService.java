@@ -4,8 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hockeyassist.hockeyassist.model.Player;
 import com.hockeyassist.hockeyassist.model.PlayerSeasonStats;
+import com.hockeyassist.hockeyassist.model.Team;
 import com.hockeyassist.hockeyassist.repository.PlayerRepository;
 import com.hockeyassist.hockeyassist.repository.PlayerSeasonStatsRepository;
+import com.hockeyassist.hockeyassist.repository.TeamRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -23,12 +25,15 @@ public class KafkaPlayerConsumerService {
 
     private final PlayerRepository playerRepository;
     private final PlayerSeasonStatsRepository statsRepository;
+    private final TeamRepository teamRepository;
     private final ObjectMapper objectMapper;
 
     public KafkaPlayerConsumerService(PlayerRepository playerRepository,
-            PlayerSeasonStatsRepository statsRepository) {
+            PlayerSeasonStatsRepository statsRepository,
+            TeamRepository teamRepository) {
         this.playerRepository = playerRepository;
         this.statsRepository = statsRepository;
+        this.teamRepository = teamRepository;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -59,6 +64,25 @@ public class KafkaPlayerConsumerService {
                 return;
             }
 
+            // Get team info
+            String teamIdStr = getString(playerInfoNode, "team");
+            Team team = null;
+            if (teamIdStr != null && !teamIdStr.isEmpty()) {
+                try {
+                    Integer teamId = Integer.parseInt(teamIdStr);
+                    team = teamRepository.findByTeamId(teamId).orElse(null);
+                    if (team == null) {
+                        logger.warn("⚠️ Team with ID {} not found for player {}", teamId, fullName);
+                    }
+                } catch (NumberFormatException e) {
+                    // If team is already an abbreviation, try to find by abbreviation
+                    team = teamRepository.findByAbbreviation(teamIdStr).orElse(null);
+                    if (team == null) {
+                        logger.warn("⚠️ Team with abbreviation {} not found for player {}", teamIdStr, fullName);
+                    }
+                }
+            }
+
             // Create and save Player
             Player player = new Player();
             player.setNbaPlayerId(nbaPlayerId);
@@ -66,11 +90,12 @@ public class KafkaPlayerConsumerService {
             player.setFirstName(getString(playerInfoNode, "first_name"));
             player.setLastName(getString(playerInfoNode, "last_name"));
             player.setIsActive(playerInfoNode.has("is_active") ? playerInfoNode.get("is_active").asBoolean() : true);
-            player.setTeam(getString(playerInfoNode, "team"));
+            player.setTeam(team); // ✅ Now setting Team entity
             player.setPosition(getString(playerInfoNode, "position"));
 
             player = playerRepository.save(player);
-            logger.info("✅ Saved player: {}", player.getName());
+            String teamDisplay = team != null ? team.getAbbreviation() : "N/A";
+            logger.info("✅ Saved player: {} ({})", player.getName(), teamDisplay);
 
             // Parse and save season stats
             JsonNode resultSets = root.get("stats").get("resultSets");
@@ -134,7 +159,6 @@ public class KafkaPlayerConsumerService {
         } catch (Exception e) {
             logger.error("❌ Error processing message: {}", e.getMessage(), e);
             // Don't acknowledge - message will be retried
-            // You might want to send to a DLQ (Dead Letter Queue) here
         }
     }
 
