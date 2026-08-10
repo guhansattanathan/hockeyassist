@@ -3,12 +3,14 @@ package com.hockeyassist.hockeyassist.service;
 import com.hockeyassist.hockeyassist.model.Player;
 import com.hockeyassist.hockeyassist.model.PlayerSeasonStats;
 import com.hockeyassist.hockeyassist.repository.PlayerSeasonStatsRepository;
+import com.hockeyassist.hockeyassist.dto.PlayerSeasonStatsDTO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import org.springframework.cache.annotation.Cacheable;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class PlayerSeasonStatsService {
@@ -35,8 +37,16 @@ public class PlayerSeasonStatsService {
 
     // Get stats by NBA player ID
     @Cacheable(value = "seasons", key = "#nbaPlayerId")
-    public List<PlayerSeasonStats> getStatsByNbaPlayerId(Integer nbaPlayerId) {
-        return statsRepository.findByNbaPlayerId(nbaPlayerId);
+    @Transactional(readOnly = true)
+    public List<PlayerSeasonStatsDTO> getStatsByNbaPlayerId(Integer nbaPlayerId) {
+
+        System.out.println(
+                "🔍 Fetching season stats from PostgreSQL: " + nbaPlayerId);
+
+        return statsRepository.findByNbaPlayerId(nbaPlayerId)
+                .stream()
+                .map(PlayerSeasonStatsDTO::new)
+                .collect(Collectors.toList());
     }
 
     // Get stats by player, most recent first
@@ -100,8 +110,21 @@ public class PlayerSeasonStatsService {
 
     // Get league leaders for a season and stat
     @Cacheable(value = "leaders", key = "#season + '_' + #stat + '_' + #limit")
-    public List<PlayerSeasonStats> getLeagueLeaders(String season, String stat, Integer limit) {
-        return statsRepository.findLeagueLeadersBySeason(season, stat, limit);
+    @Transactional(readOnly = true)
+    public List<PlayerSeasonStatsDTO> getLeagueLeaders(
+            String season,
+            String stat,
+            Integer limit) {
+
+        System.out.println(
+                "🔍 Fetching league leaders from PostgreSQL: "
+                        + season + " / " + stat);
+
+        return statsRepository.findLeagueLeadersBySeason(
+                season, stat, limit)
+                .stream()
+                .map(PlayerSeasonStatsDTO::new)
+                .collect(Collectors.toList());
     }
 
     // Get all-time leaders for a stat

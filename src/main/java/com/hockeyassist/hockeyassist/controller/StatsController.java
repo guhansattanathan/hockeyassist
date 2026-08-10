@@ -1,6 +1,7 @@
 package com.hockeyassist.hockeyassist.controller;
 
 import com.hockeyassist.hockeyassist.dto.PlayerDTO;
+import com.hockeyassist.hockeyassist.dto.PlayerSeasonStatsDTO;
 import com.hockeyassist.hockeyassist.model.PlayerSeasonStats;
 import com.hockeyassist.hockeyassist.service.PlayerService;
 import com.hockeyassist.hockeyassist.service.PlayerSeasonStatsService;
@@ -74,8 +75,8 @@ public class StatsController {
     // ==========================================
 
     @GetMapping("/players/{nbaPlayerId}/seasons")
-    public ResponseEntity<List<PlayerSeasonStats>> getPlayerSeasons(@PathVariable Integer nbaPlayerId) {
-        List<PlayerSeasonStats> stats = statsService.getStatsByNbaPlayerId(nbaPlayerId);
+    public ResponseEntity<List<PlayerSeasonStatsDTO>> getPlayerSeasons(@PathVariable Integer nbaPlayerId) {
+        List<PlayerSeasonStatsDTO> stats = statsService.getStatsByNbaPlayerId(nbaPlayerId);
         if (stats.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -83,13 +84,13 @@ public class StatsController {
     }
 
     @GetMapping("/players/{nbaPlayerId}/seasons/{seasonId}")
-    public ResponseEntity<PlayerSeasonStats> getPlayerSeason(
+    public ResponseEntity<PlayerSeasonStatsDTO> getPlayerSeason(
             @PathVariable Integer nbaPlayerId,
             @PathVariable String seasonId) {
         return playerService.getPlayerByNbaId(nbaPlayerId)
                 .flatMap(playerDTO -> {
                     // Need to get the actual Player entity for season stats
-                    List<PlayerSeasonStats> stats = statsService.getStatsByNbaPlayerId(nbaPlayerId);
+                    List<PlayerSeasonStatsDTO> stats = statsService.getStatsByNbaPlayerId(nbaPlayerId);
                     return stats.stream()
                             .filter(s -> seasonId.equals(s.getSeasonId()))
                             .findFirst();
@@ -130,11 +131,11 @@ public class StatsController {
     // ==========================================
 
     @GetMapping("/leaders/{season}/{stat}")
-    public ResponseEntity<List<PlayerSeasonStats>> getLeagueLeaders(
+    public ResponseEntity<List<PlayerSeasonStatsDTO>> getLeagueLeaders(
             @PathVariable String season,
             @PathVariable String stat,
             @RequestParam(defaultValue = "10") Integer limit) {
-        List<PlayerSeasonStats> leaders = statsService.getLeagueLeaders(season, stat, limit);
+        List<PlayerSeasonStatsDTO> leaders = statsService.getLeagueLeaders(season, stat, limit);
         if (leaders.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
