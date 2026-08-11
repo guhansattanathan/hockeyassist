@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class DataLoaderService {
@@ -32,7 +33,6 @@ public class DataLoaderService {
         try {
             System.out.println("🚀 Starting data load...");
 
-            // 1. Read the JSON file
             ObjectMapper mapper = new ObjectMapper();
             File jsonFile = new File("data/all_players_data.json");
 
@@ -50,9 +50,7 @@ public class DataLoaderService {
             int totalPlayers = 0;
             int totalSeasons = 0;
 
-            // Check if it's an array (multiple players) or single object
             if (root.isArray()) {
-                // ✅ Multiple players (from fetch_all_players.py)
                 System.out.println("📦 Loading multiple players from all_players_data.json...");
                 for (JsonNode playerNode : root) {
                     int count = loadSinglePlayer(playerNode);
@@ -62,7 +60,6 @@ public class DataLoaderService {
                     }
                 }
             } else {
-                // ✅ Single player (from fetch_player_data.py)
                 System.out.println("📦 Loading single player from player_data.json...");
                 int count = loadSinglePlayer(root);
                 if (count > 0) {
@@ -83,7 +80,6 @@ public class DataLoaderService {
 
     private int loadSinglePlayer(JsonNode node) {
         try {
-            // 1. Get player info
             JsonNode playerInfo = node.get("player_info");
             if (playerInfo == null) {
                 System.out.println("⚠️ No player_info found, skipping...");
@@ -96,34 +92,20 @@ public class DataLoaderService {
             String lastName = playerInfo.get("last_name").asText();
             Boolean isActive = playerInfo.get("is_active").asBoolean();
 
-            // 2. Check if player already exists
-            if (playerRepository.findByNbaPlayerId(nbaPlayerId).isPresent()) {
-                System.out.println("   ⏭️ Player " + fullName + " already loaded. Skipping.");
-                return 0;
-            }
-
-            // 3. Get team from player_info
+            // Get team from player_info
             String teamIdStr = playerInfo.has("team") && !playerInfo.get("team").isNull()
                     ? playerInfo.get("team").asText()
                     : null;
-
-            System.out.println("   🔍 Debug - teamIdStr: '" + teamIdStr + "' for " + fullName);
-            System.out.println("   🔍 Debug - playerInfo: " + playerInfo);
 
             Team team = null;
             if (teamIdStr != null && !teamIdStr.isEmpty()) {
                 try {
                     Integer teamId = Integer.parseInt(teamIdStr);
-                    System.out.println("   🔍 Parsed as integer: " + teamId);
                     team = teamRepository.findByTeamId(teamId).orElse(null);
                     if (team == null) {
                         System.out.println("   ⚠️ Team with ID " + teamId + " not found for " + fullName);
-                    } else {
-                        System.out.println("   ✅ Found team: " + team.getAbbreviation() + " for " + fullName);
                     }
                 } catch (NumberFormatException e) {
-                    System.out.println("   🔍 Could not parse as integer: " + teamIdStr);
-                    // If it's already an abbreviation, try to find by abbreviation
                     team = teamRepository.findByAbbreviation(teamIdStr).orElse(null);
                     if (team == null) {
                         System.out.println("   ⚠️ Team with abbreviation " + teamIdStr + " not found for " + fullName);
@@ -135,23 +117,38 @@ public class DataLoaderService {
                     ? playerInfo.get("position").asText()
                     : null;
 
-            // 4. Create and save Player
-            Player player = new Player();
-            player.setNbaPlayerId(nbaPlayerId);
-            player.setName(fullName);
-            player.setFirstName(firstName);
-            player.setLastName(lastName);
-            player.setIsActive(isActive);
-            player.setTeam(team); // ✅ Now setting Team entity
-            player.setPosition(position);
+            // ✅ UPSERT Player
+            Optional<Player> existingPlayer = playerRepository.findByNbaPlayerId(nbaPlayerId);
+            Player player;
 
-            player = playerRepository.save(player);
-            String teamDisplay = team != null ? team.getAbbreviation() : "N/A";
-            System.out.println("   ✅ Saved player: " + player.getName() +
-                    " (" + teamDisplay + ")" +
-                    (position != null ? " - " + position : ""));
+            if (existingPlayer.isPresent()) {
+                // 🔄 UPDATE existing player
+                player = existingPlayer.get();
+                player.setName(fullName);
+                player.setFirstName(firstName);
+                player.setLastName(lastName);
+                player.setIsActive(isActive);
+                player.setTeam(team);
+                player.setPosition(position);
+                player = playerRepository.save(player);
+                System.out.println("   🔄 Updated player: " + player.getName() +
+                        (team != null ? " (" + team.getAbbreviation() + ")" : ""));
+            } else {
+                // ✅ INSERT new player
+                player = new Player();
+                player.setNbaPlayerId(nbaPlayerId);
+                player.setName(fullName);
+                player.setFirstName(firstName);
+                player.setLastName(lastName);
+                player.setIsActive(isActive);
+                player.setTeam(team);
+                player.setPosition(position);
+                player = playerRepository.save(player);
+                System.out.println("   ✅ Added new player: " + player.getName() +
+                        (team != null ? " (" + team.getAbbreviation() + ")" : ""));
+            }
 
-            // 5. Find the SeasonTotalsRegularSeason result set
+            // Find season stats
             JsonNode resultSets = node.get("resultSets");
             JsonNode seasonStats = null;
             for (JsonNode resultSet : resultSets) {
@@ -166,16 +163,30 @@ public class DataLoaderService {
                 return 0;
             }
 
-            // 6. Parse and save each season
+            // ✅ UPSERT Seasons
             JsonNode rows = seasonStats.get("rowSet");
             List<PlayerSeasonStats> statsList = new ArrayList<>();
 
             for (JsonNode row : rows) {
-                PlayerSeasonStats stats = new PlayerSeasonStats();
-                stats.setPlayer(player);
+                String seasonId = getString(row, 1);
 
-                // Map each column by index
-                stats.setSeasonId(getString(row, 1));
+                // Check if season already exists
+                List<PlayerSeasonStats> existing = statsRepository
+                        .findByPlayerAndSeasonId(player, seasonId);
+
+                PlayerSeasonStats stats;
+
+                if (!existing.isEmpty()) {
+                    // 🔄 UPDATE existing season
+                    stats = existing.get(0);
+                } else {
+                    // ✅ INSERT new season
+                    stats = new PlayerSeasonStats();
+                    stats.setPlayer(player);
+                    stats.setSeasonId(seasonId);
+                }
+
+                // Update all fields
                 stats.setTeamAbbreviation(getString(row, 4));
                 stats.setPlayerAge(getDouble(row, 5));
                 stats.setGamesPlayed(getInt(row, 6));
@@ -203,9 +214,10 @@ public class DataLoaderService {
                 statsList.add(stats);
             }
 
-            // 7. Save all season stats
-            statsRepository.saveAll(statsList);
-            System.out.println("   ✅ Saved " + statsList.size() + " seasons for " + player.getName());
+            if (!statsList.isEmpty()) {
+                statsRepository.saveAll(statsList);
+                System.out.println("   ✅ Saved " + statsList.size() + " seasons for " + player.getName());
+            }
 
             return statsList.size();
 
@@ -215,7 +227,6 @@ public class DataLoaderService {
         }
     }
 
-    // Helper methods to safely extract values from JSON
     private String getString(JsonNode row, int index) {
         JsonNode node = row.get(index);
         return node.isNull() ? null : node.asText();

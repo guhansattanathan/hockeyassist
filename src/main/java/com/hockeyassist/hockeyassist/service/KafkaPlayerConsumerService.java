@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class KafkaPlayerConsumerService {
@@ -41,10 +42,8 @@ public class KafkaPlayerConsumerService {
     @Transactional
     public void consumePlayerStats(byte[] messageBytes, Acknowledgment ack) {
         try {
-            // Parse the JSON message
             JsonNode root = objectMapper.readTree(messageBytes);
 
-            // Get player info
             JsonNode playerInfoNode = root.get("player_info");
             if (playerInfoNode == null) {
                 logger.warn("Received message with no player_info. Skipping.");
@@ -57,14 +56,7 @@ public class KafkaPlayerConsumerService {
 
             logger.info("📥 Processing: {} (ID: {})", fullName, nbaPlayerId);
 
-            // Check if player already exists
-            if (playerRepository.findByNbaPlayerId(nbaPlayerId).isPresent()) {
-                logger.info("⏭️ Player {} already loaded. Skipping.", fullName);
-                ack.acknowledge();
-                return;
-            }
-
-            // Get team info
+            // ✅ Get team info
             String teamIdStr = getString(playerInfoNode, "team");
             Team team = null;
             if (teamIdStr != null && !teamIdStr.isEmpty()) {
@@ -75,7 +67,6 @@ public class KafkaPlayerConsumerService {
                         logger.warn("⚠️ Team with ID {} not found for player {}", teamId, fullName);
                     }
                 } catch (NumberFormatException e) {
-                    // If team is already an abbreviation, try to find by abbreviation
                     team = teamRepository.findByAbbreviation(teamIdStr).orElse(null);
                     if (team == null) {
                         logger.warn("⚠️ Team with abbreviation {} not found for player {}", teamIdStr, fullName);
@@ -83,21 +74,41 @@ public class KafkaPlayerConsumerService {
                 }
             }
 
-            // Create and save Player
-            Player player = new Player();
-            player.setNbaPlayerId(nbaPlayerId);
-            player.setName(fullName);
-            player.setFirstName(getString(playerInfoNode, "first_name"));
-            player.setLastName(getString(playerInfoNode, "last_name"));
-            player.setIsActive(playerInfoNode.has("is_active") ? playerInfoNode.get("is_active").asBoolean() : true);
-            player.setTeam(team); // ✅ Now setting Team entity
-            player.setPosition(getString(playerInfoNode, "position"));
+            String position = getString(playerInfoNode, "position");
+            Boolean isActive = playerInfoNode.has("is_active") ? playerInfoNode.get("is_active").asBoolean() : true;
 
-            player = playerRepository.save(player);
-            String teamDisplay = team != null ? team.getAbbreviation() : "N/A";
-            logger.info("✅ Saved player: {} ({})", player.getName(), teamDisplay);
+            // ✅ UPSERT Player
+            Optional<Player> existingPlayer = playerRepository.findByNbaPlayerId(nbaPlayerId);
+            Player player;
 
-            // Parse and save season stats
+            if (existingPlayer.isPresent()) {
+                // 🔄 UPDATE existing player
+                player = existingPlayer.get();
+                player.setName(fullName);
+                player.setFirstName(getString(playerInfoNode, "first_name"));
+                player.setLastName(getString(playerInfoNode, "last_name"));
+                player.setIsActive(isActive);
+                player.setTeam(team);
+                player.setPosition(position);
+                player = playerRepository.save(player);
+                logger.info("🔄 Updated player: {} ({})", player.getName(),
+                        team != null ? team.getAbbreviation() : "N/A");
+            } else {
+                // ✅ INSERT new player
+                player = new Player();
+                player.setNbaPlayerId(nbaPlayerId);
+                player.setName(fullName);
+                player.setFirstName(getString(playerInfoNode, "first_name"));
+                player.setLastName(getString(playerInfoNode, "last_name"));
+                player.setIsActive(isActive);
+                player.setTeam(team);
+                player.setPosition(position);
+                player = playerRepository.save(player);
+                logger.info("✅ Added new player: {} ({})", player.getName(),
+                        team != null ? team.getAbbreviation() : "N/A");
+            }
+
+            // ✅ UPSERT Season Stats
             JsonNode resultSets = root.get("stats").get("resultSets");
             if (resultSets != null && resultSets.isArray()) {
                 List<PlayerSeasonStats> statsList = new ArrayList<>();
@@ -107,14 +118,27 @@ public class KafkaPlayerConsumerService {
                         JsonNode rows = resultSet.get("rowSet");
                         if (rows != null && rows.isArray()) {
                             for (JsonNode row : rows) {
-                                PlayerSeasonStats seasonStats = new PlayerSeasonStats();
-                                seasonStats.setPlayer(player);
+                                String seasonId = getStringFromRow(row, 1);
 
-                                // Map columns by index
-                                // Headers: PLAYER_ID, SEASON_ID, LEAGUE_ID, TEAM_ID, TEAM_ABBREVIATION,
-                                // PLAYER_AGE, GP, GS, MIN, FGM, FGA, FG_PCT, FG3M, FG3A, FG3_PCT,
-                                // FTM, FTA, FT_PCT, OREB, DREB, REB, AST, STL, BLK, TOV, PF, PTS
-                                seasonStats.setSeasonId(getStringFromRow(row, 1));
+                                // ✅ Check if season already exists
+                                List<PlayerSeasonStats> existing = statsRepository
+                                        .findByPlayerAndSeasonId(player, seasonId);
+
+                                PlayerSeasonStats seasonStats;
+
+                                if (!existing.isEmpty()) {
+                                    // 🔄 UPDATE existing season
+                                    seasonStats = existing.get(0);
+                                    logger.debug("🔄 Updating season {} for {}", seasonId, player.getName());
+                                } else {
+                                    // ✅ INSERT new season
+                                    seasonStats = new PlayerSeasonStats();
+                                    seasonStats.setPlayer(player);
+                                    seasonStats.setSeasonId(seasonId);
+                                    logger.debug("✅ Adding new season {} for {}", seasonId, player.getName());
+                                }
+
+                                // Update all fields (works for both insert and update)
                                 seasonStats.setTeamAbbreviation(getStringFromRow(row, 4));
                                 seasonStats.setPlayerAge(getDoubleFromRow(row, 5));
                                 seasonStats.setGamesPlayed(getIntFromRow(row, 6));
@@ -149,10 +173,11 @@ public class KafkaPlayerConsumerService {
                 if (!statsList.isEmpty()) {
                     statsRepository.saveAll(statsList);
                     logger.info("✅ Saved {} seasons for {}", statsList.size(), player.getName());
+                } else {
+                    logger.info("ℹ️ No seasons to save for {}", player.getName());
                 }
             }
 
-            // Acknowledge the message
             ack.acknowledge();
             logger.info("✅ Successfully processed: {}", fullName);
 

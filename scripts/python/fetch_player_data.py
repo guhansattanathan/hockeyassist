@@ -20,7 +20,7 @@ project_root = os.path.dirname(os.path.dirname(script_dir))
 
 # Save to data/ folder at project root
 data_dir = os.path.join(project_root, 'data')
-os.makedirs(data_dir, exist_ok=True)  # ← This ensures the directory exists
+os.makedirs(data_dir, exist_ok=True)
 
 # ==========================================
 # KAFKA CONFIGURATION
@@ -29,6 +29,9 @@ os.makedirs(data_dir, exist_ok=True)  # ← This ensures the directory exists
 KAFKA_BOOTSTRAP_SERVERS = 'localhost:9092'
 KAFKA_TOPIC = 'player-stats'
 
+# ✅ Track processed players to avoid duplicates
+processed_players = set()
+
 def create_kafka_producer():
     """Create and return a Kafka producer"""
     try:
@@ -36,9 +39,9 @@ def create_kafka_producer():
             bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
             value_serializer=lambda v: json.dumps(v, default=str).encode('utf-8'),
             key_serializer=lambda k: k.encode('utf-8') if k else None,
-            acks='all',  # Wait for all replicas to acknowledge
+            acks='all',
             retries=3,
-            max_in_flight_requests_per_connection=1  # Preserve ordering
+            max_in_flight_requests_per_connection=1
         )
         logger.info(f"✅ Connected to Kafka at {KAFKA_BOOTSTRAP_SERVERS}")
         return producer
@@ -132,9 +135,10 @@ def main():
     failed_players = []
     successful_count = 0
     kafka_success_count = 0
+    duplicate_count = 0
     
     # Limit for testing - set to None for all players
-    MAX_PLAYERS = None  # Set to e.g., 50 for testing
+    MAX_PLAYERS = None
     
     players_to_fetch = active_players[:MAX_PLAYERS] if MAX_PLAYERS else active_players
     
@@ -143,6 +147,12 @@ def main():
     for idx, player in enumerate(players_to_fetch, 1):
         player_id = player['id']
         player_name = player['full_name']
+        
+        # ✅ Skip if already processed (prevent duplicates)
+        if player_id in processed_players:
+            print(f"  [{idx}/{len(players_to_fetch)}] {player_name}... ⏭️ (already sent)")
+            duplicate_count += 1
+            continue
         
         print(f"  [{idx}/{len(players_to_fetch)}] {player_name}...", end=" ")
         sys.stdout.flush()
@@ -171,35 +181,33 @@ def main():
                     'experience': player_info.get('experience'),
                     'college': player_info.get('college')
                 },
-                'stats': stats  # The full career stats from NBA API
+                'stats': stats
             }
             
             # Option A: Publish to Kafka
             if use_kafka:
                 try:
-                    # Use player_id as the key for partitioning
                     key = str(player_id)
                     future = producer.send(KAFKA_TOPIC, key=key, value=message)
-                    # Wait for acknowledgment (optional)
                     record_metadata = future.get(timeout=10)
                     kafka_success_count += 1
                     print("✅ (Kafka)")
                 except Exception as e:
                     logger.error(f"  ❌ Kafka error for {player_name}: {e}")
-                    # Fallback: save to JSON if Kafka fails
                     all_players_data.append(message)
                     print("✅ (Saved to JSON fallback)")
             else:
-                # Option B: Save to JSON (fallback)
                 all_players_data.append(message)
                 print("✅ (JSON)")
             
+            # ✅ Add to processed set to prevent duplicates
+            processed_players.add(player_id)
             successful_count += 1
         else:
             failed_players.append(player_name)
             print("❌")
         
-        # Rate limiting - NBA API doesn't like too many requests
+        # Rate limiting
         time.sleep(0.5)
     
     # 4. Flush any remaining Kafka messages
@@ -207,7 +215,7 @@ def main():
         producer.flush()
         logger.info(f"📤 Published {kafka_success_count} messages to Kafka topic '{KAFKA_TOPIC}'")
     
-    # 5. Save fallback JSON file (for players that failed Kafka or if Kafka was unavailable)
+    # 5. Save fallback JSON file
     if all_players_data:
         save_to_json(all_players_data, 'all_players_data_fallback.json')
     
@@ -215,6 +223,7 @@ def main():
     print("\n" + "=" * 50)
     print("📊 SUMMARY")
     print(f"  ✅ Total players processed: {successful_count}")
+    print(f"  ⏭️ Duplicates skipped: {duplicate_count}")
     if use_kafka:
         print(f"  📤 Published to Kafka: {kafka_success_count}")
     else:
