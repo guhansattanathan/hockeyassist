@@ -3,8 +3,10 @@ package com.hockeyassist.hockeyassist.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hockeyassist.hockeyassist.model.Player;
+import com.hockeyassist.hockeyassist.model.PlayerHeadshot;
 import com.hockeyassist.hockeyassist.model.PlayerSeasonStats;
 import com.hockeyassist.hockeyassist.model.Team;
+import com.hockeyassist.hockeyassist.repository.PlayerHeadshotRepository;
 import com.hockeyassist.hockeyassist.repository.PlayerRepository;
 import com.hockeyassist.hockeyassist.repository.PlayerSeasonStatsRepository;
 import com.hockeyassist.hockeyassist.repository.TeamRepository;
@@ -27,14 +29,17 @@ public class KafkaPlayerConsumerService {
     private final PlayerRepository playerRepository;
     private final PlayerSeasonStatsRepository statsRepository;
     private final TeamRepository teamRepository;
+    private final PlayerHeadshotRepository headshotRepository; // ✅ Added
     private final ObjectMapper objectMapper;
 
     public KafkaPlayerConsumerService(PlayerRepository playerRepository,
             PlayerSeasonStatsRepository statsRepository,
-            TeamRepository teamRepository) {
+            TeamRepository teamRepository,
+            PlayerHeadshotRepository headshotRepository) { // ✅ Added to constructor
         this.playerRepository = playerRepository;
         this.statsRepository = statsRepository;
         this.teamRepository = teamRepository;
+        this.headshotRepository = headshotRepository;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -106,6 +111,23 @@ public class KafkaPlayerConsumerService {
                 player = playerRepository.save(player);
                 logger.info("✅ Added new player: {} ({})", player.getName(),
                         team != null ? team.getAbbreviation() : "N/A");
+            }
+
+            // ✅ Save Headshot URL
+            String headshotUrl = getString(playerInfoNode, "headshot_url");
+            if (headshotUrl != null) {
+                Optional<PlayerHeadshot> existingHeadshot = headshotRepository.findByPlayerId(nbaPlayerId);
+                PlayerHeadshot headshot;
+                if (existingHeadshot.isPresent()) {
+                    headshot = existingHeadshot.get();
+                    headshot.setImageUrl(headshotUrl);
+                    logger.debug("🔄 Updated headshot URL for player {}", fullName);
+                } else {
+                    headshot = new PlayerHeadshot(nbaPlayerId);
+                    headshot.setImageUrl(headshotUrl);
+                    logger.debug("✅ Added headshot URL for player {}", fullName);
+                }
+                headshotRepository.save(headshot);
             }
 
             // ✅ UPSERT Season Stats

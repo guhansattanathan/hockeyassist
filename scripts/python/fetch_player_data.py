@@ -106,6 +106,10 @@ def save_to_json(data, filename):
         json.dump(data, file, indent=2, default=str)
     logger.info(f"💾 Saved to {output_file}")
 
+def get_headshot_url(player_id):
+    """Generate headshot URL for a player"""
+    return f"https://cdn.nba.com/headshots/nba/latest/260x190/{player_id}.png"
+
 # ==========================================
 # MAIN FUNCTION
 # ==========================================
@@ -179,7 +183,8 @@ def main():
                     'height': player_info.get('height'),
                     'weight': player_info.get('weight'),
                     'experience': player_info.get('experience'),
-                    'college': player_info.get('college')
+                    'college': player_info.get('college'),
+                    'headshot_url': get_headshot_url(player['id'])
                 },
                 'stats': stats
             }

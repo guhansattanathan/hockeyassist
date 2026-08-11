@@ -13,10 +13,11 @@ public class PlayerDTO implements Serializable {
     private String name;
     private String firstName;
     private String lastName;
-    private String team; // Team abbreviation (String)
-    private String teamName; // Full team name (optional)
+    private String team;
+    private String teamName;
     private String position;
     private Boolean isActive;
+    private String headshotUrl;
 
     public PlayerDTO() {
     }
@@ -30,7 +31,9 @@ public class PlayerDTO implements Serializable {
         this.position = player.getPosition();
         this.isActive = player.getIsActive();
 
-        // ✅ Handle Team entity
+        // ✅ Generate headshot URL
+        this.headshotUrl = generateHeadshotUrl(player.getNbaPlayerId());
+
         Team team = player.getTeam();
         if (team != null) {
             this.team = team.getAbbreviation();
@@ -39,6 +42,13 @@ public class PlayerDTO implements Serializable {
             this.team = null;
             this.teamName = null;
         }
+    }
+
+    // ✅ Helper method to generate headshot URL
+    private String generateHeadshotUrl(Integer nbaPlayerId) {
+        if (nbaPlayerId == null)
+            return null;
+        return String.format("https://cdn.nba.com/headshots/nba/latest/260x190/%d.png", nbaPlayerId);
     }
 
     // Getters and Setters
@@ -112,5 +122,13 @@ public class PlayerDTO implements Serializable {
 
     public void setIsActive(Boolean isActive) {
         this.isActive = isActive;
+    }
+
+    public String getHeadshotUrl() {
+        return headshotUrl;
+    }
+
+    public void setHeadshotUrl(String headshotUrl) {
+        this.headshotUrl = headshotUrl;
     }
 }

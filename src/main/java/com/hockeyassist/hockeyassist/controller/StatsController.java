@@ -2,13 +2,16 @@ package com.hockeyassist.hockeyassist.controller;
 
 import com.hockeyassist.hockeyassist.dto.PlayerDTO;
 import com.hockeyassist.hockeyassist.dto.PlayerSeasonStatsDTO;
+import com.hockeyassist.hockeyassist.model.PlayerHeadshot;
 import com.hockeyassist.hockeyassist.model.PlayerSeasonStats;
 import com.hockeyassist.hockeyassist.service.PlayerService;
 import com.hockeyassist.hockeyassist.service.PlayerSeasonStatsService;
+import com.hockeyassist.hockeyassist.service.HeadshotService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/stats")
@@ -16,10 +19,13 @@ public class StatsController {
 
     private final PlayerService playerService;
     private final PlayerSeasonStatsService statsService;
+    private final HeadshotService headshotService;
 
-    public StatsController(PlayerService playerService, PlayerSeasonStatsService statsService) {
+    public StatsController(PlayerService playerService, PlayerSeasonStatsService statsService,
+            HeadshotService headshotService) {
         this.playerService = playerService;
         this.statsService = statsService;
+        this.headshotService = headshotService;
     }
 
     // ==========================================
@@ -214,4 +220,32 @@ public class StatsController {
         }
         return ResponseEntity.ok(comparison);
     }
+
+    // ==========================================
+    // HEADSHOT ENDPOINTS
+    // ==========================================
+
+    @GetMapping("/players/{nbaPlayerId}/headshot")
+    public ResponseEntity<?> getPlayerHeadshot(@PathVariable Integer nbaPlayerId) {
+        String headshotUrl = headshotService.getHeadshotUrl(nbaPlayerId);
+        if (headshotUrl == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(headshotUrl);
+    }
+
+    @GetMapping("/players/{nbaPlayerId}/headshot-image")
+    public ResponseEntity<byte[]> getPlayerHeadshotImage(@PathVariable Integer nbaPlayerId) {
+        Optional<PlayerHeadshot> headshot = headshotService.getHeadshotByPlayerId(nbaPlayerId);
+
+        if (headshot.isPresent() && headshot.get().getImageData() != null) {
+            return ResponseEntity.ok()
+                    .contentType(org.springframework.http.MediaType.IMAGE_PNG)
+                    .body(headshot.get().getImageData());
+        }
+
+        // Return 404 with no content
+        return ResponseEntity.notFound().build();
+    }
+
 }
