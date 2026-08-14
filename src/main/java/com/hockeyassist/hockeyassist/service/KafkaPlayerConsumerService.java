@@ -30,20 +30,20 @@ public class KafkaPlayerConsumerService {
     private final PlayerSeasonStatsRepository statsRepository;
     private final TeamRepository teamRepository;
     private final PlayerHeadshotRepository headshotRepository;
-    private final PlayerSeasonAveragesService averagesService; // ✅ Added
+    private final PlayerSeasonAveragesService averagesService;
     private final ObjectMapper objectMapper;
 
-    // ✅ Updated constructor
+    // ✅ Updated constructor - removed advancedService
     public KafkaPlayerConsumerService(PlayerRepository playerRepository,
             PlayerSeasonStatsRepository statsRepository,
             TeamRepository teamRepository,
             PlayerHeadshotRepository headshotRepository,
-            PlayerSeasonAveragesService averagesService) { // ✅ Added
+            PlayerSeasonAveragesService averagesService) {
         this.playerRepository = playerRepository;
         this.statsRepository = statsRepository;
         this.teamRepository = teamRepository;
         this.headshotRepository = headshotRepository;
-        this.averagesService = averagesService; // ✅ Added
+        this.averagesService = averagesService;
         this.objectMapper = new ObjectMapper();
     }
 

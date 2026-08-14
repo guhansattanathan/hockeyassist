@@ -1,6 +1,7 @@
 package com.hockeyassist.hockeyassist.controller;
 
 import com.hockeyassist.hockeyassist.dto.PlayerDTO;
+import com.hockeyassist.hockeyassist.dto.PlayerSeasonAdvancedDTO;
 import com.hockeyassist.hockeyassist.dto.PlayerSeasonAveragesDTO;
 import com.hockeyassist.hockeyassist.dto.PlayerSeasonStatsDTO;
 import com.hockeyassist.hockeyassist.model.PlayerHeadshot;
@@ -8,6 +9,7 @@ import com.hockeyassist.hockeyassist.model.PlayerSeasonStats;
 import com.hockeyassist.hockeyassist.service.PlayerService;
 import com.hockeyassist.hockeyassist.service.PlayerSeasonStatsService;
 import com.hockeyassist.hockeyassist.service.HeadshotService;
+import com.hockeyassist.hockeyassist.service.PlayerSeasonAdvancedService;
 import com.hockeyassist.hockeyassist.service.PlayerSeasonAveragesService; // ✅ Added import
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,16 +25,18 @@ public class StatsController {
     private final PlayerSeasonStatsService statsService;
     private final HeadshotService headshotService;
     private final PlayerSeasonAveragesService averagesService; // ✅ Added
+    private final PlayerSeasonAdvancedService advancedService;
 
-    // ✅ Updated constructor
     public StatsController(PlayerService playerService,
             PlayerSeasonStatsService statsService,
             HeadshotService headshotService,
-            PlayerSeasonAveragesService averagesService) {
+            PlayerSeasonAveragesService averagesService,
+            PlayerSeasonAdvancedService advancedService) {
         this.playerService = playerService;
         this.statsService = statsService;
         this.headshotService = headshotService;
-        this.averagesService = averagesService; // ✅ Added
+        this.averagesService = averagesService;
+        this.advancedService = advancedService;
     }
 
     // ==========================================
@@ -264,5 +268,18 @@ public class StatsController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(averages);
+    }
+
+    // ==========================================
+    // ADVANCED METRICS ENDPOINTS
+    // ==========================================
+
+    @GetMapping("/players/{nbaPlayerId}/advanced/seasons")
+    public ResponseEntity<List<PlayerSeasonAdvancedDTO>> getPlayerAdvancedMetrics(@PathVariable Integer nbaPlayerId) {
+        List<PlayerSeasonAdvancedDTO> advanced = advancedService.getAdvancedByNbaPlayerId(nbaPlayerId);
+        if (advanced.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(advanced);
     }
 }
