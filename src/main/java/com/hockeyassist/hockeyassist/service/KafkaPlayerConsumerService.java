@@ -29,17 +29,21 @@ public class KafkaPlayerConsumerService {
     private final PlayerRepository playerRepository;
     private final PlayerSeasonStatsRepository statsRepository;
     private final TeamRepository teamRepository;
-    private final PlayerHeadshotRepository headshotRepository; // ✅ Added
+    private final PlayerHeadshotRepository headshotRepository;
+    private final PlayerSeasonAveragesService averagesService; // ✅ Added
     private final ObjectMapper objectMapper;
 
+    // ✅ Updated constructor
     public KafkaPlayerConsumerService(PlayerRepository playerRepository,
             PlayerSeasonStatsRepository statsRepository,
             TeamRepository teamRepository,
-            PlayerHeadshotRepository headshotRepository) { // ✅ Added to constructor
+            PlayerHeadshotRepository headshotRepository,
+            PlayerSeasonAveragesService averagesService) { // ✅ Added
         this.playerRepository = playerRepository;
         this.statsRepository = statsRepository;
         this.teamRepository = teamRepository;
         this.headshotRepository = headshotRepository;
+        this.averagesService = averagesService; // ✅ Added
         this.objectMapper = new ObjectMapper();
     }
 
@@ -195,6 +199,9 @@ public class KafkaPlayerConsumerService {
                 if (!statsList.isEmpty()) {
                     statsRepository.saveAll(statsList);
                     logger.info("✅ Saved {} seasons for {}", statsList.size(), player.getName());
+
+                    // ✅ Calculate averages for this player
+                    averagesService.calculateAndSaveAverages(player);
                 } else {
                     logger.info("ℹ️ No seasons to save for {}", player.getName());
                 }

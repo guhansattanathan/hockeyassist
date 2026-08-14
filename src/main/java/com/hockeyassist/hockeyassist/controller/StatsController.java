@@ -1,12 +1,14 @@
 package com.hockeyassist.hockeyassist.controller;
 
 import com.hockeyassist.hockeyassist.dto.PlayerDTO;
+import com.hockeyassist.hockeyassist.dto.PlayerSeasonAveragesDTO;
 import com.hockeyassist.hockeyassist.dto.PlayerSeasonStatsDTO;
 import com.hockeyassist.hockeyassist.model.PlayerHeadshot;
 import com.hockeyassist.hockeyassist.model.PlayerSeasonStats;
 import com.hockeyassist.hockeyassist.service.PlayerService;
 import com.hockeyassist.hockeyassist.service.PlayerSeasonStatsService;
 import com.hockeyassist.hockeyassist.service.HeadshotService;
+import com.hockeyassist.hockeyassist.service.PlayerSeasonAveragesService; // ✅ Added import
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -20,12 +22,17 @@ public class StatsController {
     private final PlayerService playerService;
     private final PlayerSeasonStatsService statsService;
     private final HeadshotService headshotService;
+    private final PlayerSeasonAveragesService averagesService; // ✅ Added
 
-    public StatsController(PlayerService playerService, PlayerSeasonStatsService statsService,
-            HeadshotService headshotService) {
+    // ✅ Updated constructor
+    public StatsController(PlayerService playerService,
+            PlayerSeasonStatsService statsService,
+            HeadshotService headshotService,
+            PlayerSeasonAveragesService averagesService) {
         this.playerService = playerService;
         this.statsService = statsService;
         this.headshotService = headshotService;
+        this.averagesService = averagesService; // ✅ Added
     }
 
     // ==========================================
@@ -95,7 +102,6 @@ public class StatsController {
             @PathVariable String seasonId) {
         return playerService.getPlayerByNbaId(nbaPlayerId)
                 .flatMap(playerDTO -> {
-                    // Need to get the actual Player entity for season stats
                     List<PlayerSeasonStatsDTO> stats = statsService.getStatsByNbaPlayerId(nbaPlayerId);
                     return stats.stream()
                             .filter(s -> seasonId.equals(s.getSeasonId()))
@@ -244,8 +250,19 @@ public class StatsController {
                     .body(headshot.get().getImageData());
         }
 
-        // Return 404 with no content
         return ResponseEntity.notFound().build();
     }
 
+    // ==========================================
+    // SEASON AVERAGES ENDPOINTS
+    // ==========================================
+
+    @GetMapping("/players/{nbaPlayerId}/averages/seasons")
+    public ResponseEntity<List<PlayerSeasonAveragesDTO>> getPlayerAverages(@PathVariable Integer nbaPlayerId) {
+        List<PlayerSeasonAveragesDTO> averages = averagesService.getAveragesByNbaPlayerId(nbaPlayerId);
+        if (averages.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(averages);
+    }
 }
