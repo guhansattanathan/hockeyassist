@@ -4,9 +4,11 @@ import com.hockeyassist.hockeyassist.dto.PlayerDTO;
 import com.hockeyassist.hockeyassist.dto.PlayerSeasonAdvancedDTO;
 import com.hockeyassist.hockeyassist.dto.PlayerSeasonAveragesDTO;
 import com.hockeyassist.hockeyassist.dto.PlayerSeasonStatsDTO;
+import com.hockeyassist.hockeyassist.dto.PlayerShotDTO;
 import com.hockeyassist.hockeyassist.model.PlayerHeadshot;
 import com.hockeyassist.hockeyassist.model.PlayerSeasonStats;
 import com.hockeyassist.hockeyassist.service.PlayerService;
+import com.hockeyassist.hockeyassist.service.ShotService;
 import com.hockeyassist.hockeyassist.service.PlayerSeasonStatsService;
 import com.hockeyassist.hockeyassist.service.HeadshotService;
 import com.hockeyassist.hockeyassist.service.PlayerSeasonAdvancedService;
@@ -26,17 +28,20 @@ public class StatsController {
     private final HeadshotService headshotService;
     private final PlayerSeasonAveragesService averagesService; // ✅ Added
     private final PlayerSeasonAdvancedService advancedService;
+    private final ShotService shotService;
 
     public StatsController(PlayerService playerService,
             PlayerSeasonStatsService statsService,
             HeadshotService headshotService,
             PlayerSeasonAveragesService averagesService,
-            PlayerSeasonAdvancedService advancedService) {
+            PlayerSeasonAdvancedService advancedService,
+            ShotService shotService) {
         this.playerService = playerService;
         this.statsService = statsService;
         this.headshotService = headshotService;
         this.averagesService = averagesService;
         this.advancedService = advancedService;
+        this.shotService = shotService;
     }
 
     // ==========================================
@@ -281,5 +286,36 @@ public class StatsController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(advanced);
+    }
+
+    // ==========================================
+    // SHOT CHART ENDPOINTS
+    // ==========================================
+
+    @GetMapping("/players/{nbaPlayerId}/shots")
+    public ResponseEntity<List<PlayerShotDTO>> getPlayerShots(
+            @PathVariable Integer nbaPlayerId,
+            @RequestParam(required = false) String season) {
+
+        List<PlayerShotDTO> shots;
+        if (season != null && !season.isEmpty()) {
+            shots = shotService.getShotsByPlayerIdAndSeason(nbaPlayerId, season);
+        } else {
+            shots = shotService.getShotsByPlayerId(nbaPlayerId);
+        }
+
+        if (shots.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(shots);
+    }
+
+    @GetMapping("/players/{nbaPlayerId}/shots/seasons")
+    public ResponseEntity<List<String>> getShotSeasons(@PathVariable Integer nbaPlayerId) {
+        List<String> seasons = shotService.getDistinctSeasonsByPlayerId(nbaPlayerId);
+        if (seasons.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(seasons);
     }
 }
