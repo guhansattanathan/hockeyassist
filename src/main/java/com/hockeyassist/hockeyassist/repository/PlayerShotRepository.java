@@ -18,4 +18,6 @@ public interface PlayerShotRepository extends JpaRepository<PlayerShot, UUID> {
 
     @Query("SELECT DISTINCT s.seasonId FROM PlayerShot s WHERE s.player.nbaPlayerId = :nbaPlayerId ORDER BY s.seasonId DESC")
     List<String> findDistinctSeasonsByNbaPlayerId(@Param("nbaPlayerId") Integer nbaPlayerId);
+
+    boolean existsByGameIdAndGameEventId(String gameId, Integer gameEventId);
 }

@@ -39,6 +39,15 @@ public class KafkaShotConsumer {
 
             Integer nbaPlayerId = root.get("PLAYER_ID").asInt();
             String seasonId = root.has("SEASON_ID") ? root.get("SEASON_ID").asText() : "2025-26";
+            String gameId = root.has("GAME_ID") ? root.get("GAME_ID").asText() : null;
+            Integer gameEventId = root.has("GAME_EVENT_ID") ? root.get("GAME_EVENT_ID").asInt() : null;
+
+            if (gameId != null && gameEventId != null
+                    && shotRepository.existsByGameIdAndGameEventId(gameId, gameEventId)) {
+                logger.debug("⏭️ Shot {} already exists, skipping.", gameEventId);
+                ack.acknowledge();
+                return;
+            }
 
             Optional<Player> playerOpt = playerRepository.findByNbaPlayerId(nbaPlayerId);
             if (playerOpt.isEmpty()) {
@@ -51,6 +60,7 @@ public class KafkaShotConsumer {
 
             PlayerShot shot = new PlayerShot(player, seasonId);
             shot.setGameId(root.has("GAME_ID") ? root.get("GAME_ID").asText() : null);
+            shot.setGameEventId(gameEventId);
             shot.setShotMade(root.has("SHOT_MADE_FLAG") && root.get("SHOT_MADE_FLAG").asInt() == 1);
             shot.setLocX(root.has("LOC_X") ? root.get("LOC_X").asDouble() : null);
             shot.setLocY(root.has("LOC_Y") ? root.get("LOC_Y").asDouble() : null);

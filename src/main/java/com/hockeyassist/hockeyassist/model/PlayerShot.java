@@ -42,6 +42,9 @@ public class PlayerShot {
     @Column(name = "shot_distance")
     private Integer shotDistance;
 
+    @Column(name = "game_event_id")
+    private Integer gameEventId;
+
     // Constructors
     public PlayerShot() {
     }
@@ -139,4 +142,13 @@ public class PlayerShot {
     public void setShotDistance(Integer shotDistance) {
         this.shotDistance = shotDistance;
     }
+
+    public Integer getGameEventId() {
+        return gameEventId;
+    }
+
+    public void setGameEventId(Integer gameEventId) {
+        this.gameEventId = gameEventId;
+    }
+
 }
