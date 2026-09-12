@@ -97,23 +97,24 @@ public interface PlayerSeasonStatsRepository extends JpaRepository<PlayerSeasonS
                         @Param("season") String season);
 
         @Query("""
-                        SELECT new map(
+                            SELECT new map(
                                 p.name as name,
                                 p.nbaPlayerId as nbaPlayerId,
                                 t.abbreviation as team,
                                 p.position as position,
-                                AVG(s.points) as ppg,
-                                AVG(s.rebounds) as rpg,
-                                AVG(s.assists) as apg
-                        )
-                        FROM PlayerSeasonStats s
-                        JOIN s.player p
-                        LEFT JOIN p.team t
-                        WHERE s.seasonId = :seasonId
-                        AND s.gamesPlayed >= 20
-                        GROUP BY p.name, p.nbaPlayerId, t.abbreviation, p.position
-                        HAVING AVG(s.points) >= 15
-                        ORDER BY AVG(s.points) DESC
+                                AVG(CAST(s.points AS double) / NULLIF(s.gamesPlayed, 0)) as ppg,
+                                AVG(CAST(s.rebounds AS double) / NULLIF(s.gamesPlayed, 0)) as rpg,
+                                AVG(CAST(s.assists AS double) / NULLIF(s.gamesPlayed, 0)) as apg,
+                                SUM(s.gamesPlayed) as gamesPlayed
+                            )
+                            FROM PlayerSeasonStats s
+                            JOIN s.player p
+                            LEFT JOIN p.team t
+                            WHERE s.seasonId = :seasonId
+                              AND s.gamesPlayed >= 20
+                            GROUP BY p.name, p.nbaPlayerId, t.abbreviation, p.position
+                            HAVING SUM(s.gamesPlayed) >= 20
+                            ORDER BY ppg DESC
                         """)
         List<Map<String, Object>> findTwoWayCandidates(@Param("seasonId") String seasonId);
 }
