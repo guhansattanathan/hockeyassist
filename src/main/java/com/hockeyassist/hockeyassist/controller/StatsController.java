@@ -5,6 +5,7 @@ import com.hockeyassist.hockeyassist.dto.PlayerSeasonAdvancedDTO;
 import com.hockeyassist.hockeyassist.dto.PlayerSeasonAveragesDTO;
 import com.hockeyassist.hockeyassist.dto.PlayerSeasonStatsDTO;
 import com.hockeyassist.hockeyassist.dto.PlayerShotDTO;
+import com.hockeyassist.hockeyassist.dto.PlayerVennDTO;
 import com.hockeyassist.hockeyassist.model.PlayerHeadshot;
 import com.hockeyassist.hockeyassist.model.PlayerSeasonStats;
 import com.hockeyassist.hockeyassist.service.PlayerService;
@@ -12,7 +13,8 @@ import com.hockeyassist.hockeyassist.service.ShotService;
 import com.hockeyassist.hockeyassist.service.PlayerSeasonStatsService;
 import com.hockeyassist.hockeyassist.service.HeadshotService;
 import com.hockeyassist.hockeyassist.service.PlayerSeasonAdvancedService;
-import com.hockeyassist.hockeyassist.service.PlayerSeasonAveragesService; // ✅ Added import
+import com.hockeyassist.hockeyassist.service.PlayerSeasonAveragesService;
+import com.hockeyassist.hockeyassist.service.VennDiagramService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -29,19 +31,22 @@ public class StatsController {
     private final PlayerSeasonAveragesService averagesService; // ✅ Added
     private final PlayerSeasonAdvancedService advancedService;
     private final ShotService shotService;
+    private final VennDiagramService vennService;
 
     public StatsController(PlayerService playerService,
             PlayerSeasonStatsService statsService,
             HeadshotService headshotService,
             PlayerSeasonAveragesService averagesService,
             PlayerSeasonAdvancedService advancedService,
-            ShotService shotService) {
+            ShotService shotService,
+            VennDiagramService vennService) {
         this.playerService = playerService;
         this.statsService = statsService;
         this.headshotService = headshotService;
         this.averagesService = averagesService;
         this.advancedService = advancedService;
         this.shotService = shotService;
+        this.vennService = vennService;
     }
 
     // ==========================================
@@ -317,5 +322,19 @@ public class StatsController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(seasons);
+    }
+
+    @GetMapping("/players/venn/two-way")
+    public ResponseEntity<List<PlayerVennDTO>> getTwoWayVenn(
+            @RequestParam(defaultValue = "2025-26") String season,
+            @RequestParam(required = false) Double ppg,
+            @RequestParam(required = false) Double rpg,
+            @RequestParam(required = false) Double apg) {
+
+        List<PlayerVennDTO> players = vennService.getTwoWayVenn(season, ppg, rpg, apg); // ✅ Changed
+        if (players.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(players);
     }
 }
