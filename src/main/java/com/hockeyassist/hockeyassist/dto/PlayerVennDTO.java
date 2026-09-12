@@ -1,8 +1,6 @@
 package com.hockeyassist.hockeyassist.dto;
 
 import java.io.Serializable;
-import java.util.List;
-import java.util.Map;
 
 public class PlayerVennDTO implements Serializable {
     private static final long serialVersionUID = 1L;
